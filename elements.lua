@@ -181,12 +181,14 @@ local C  = 6
 local He = 2
 local H  = 1
 local Cn = 112
- 
-while true do
+
+local runProgram = true
+while runProgram do
     
     print("1. Make Emerald Stack")
     print("2. Make Diamond Block")
     print("3. Make Nether Star")
+    print("4. Exit")
     local userInput = io.read()
     
     if userInput == "1" then
@@ -244,7 +246,9 @@ while true do
         for i=1,4 do 
             createElementInAux(Cn, 4)
         end
-    
+    elseif userInput == "4" then
+        print("Exiting elements program")
+        runProgram = false
     else
         print("Unknown Option")
     end
