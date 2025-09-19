@@ -4,9 +4,6 @@ local sides = require("sides")
 
 -- CONSTANTS
 
--- number of elements to create per loop (max 64)
-local stack = 64
-
 -- Supply Barrel sides
 local source      = sides.west
 local fusionLeft  = sides.top
@@ -16,6 +13,7 @@ local xfer        = sides.bottom
 local fusionRight = sides.north
 local output      = sides.south
 local result      = sides.bottom
+local aux         = sides.top
 
 
 
@@ -62,27 +60,27 @@ function getLargestElementUpTo (atomicNum)
 end
 
 -- wait for fusion to finish / starting element to load
-function waitForFullResult ()
-    while procTran.getSlotStackSize(result, 2) < stack do
+function waitForFullResult (stackSize)
+    while procTran.getSlotStackSize(result, 2) < stackSize do
         os.sleep(0.5)
     end    
 end
 
 -- get the largest element that can be used, and put into result barrel
-function getStartingElement (atomicNum)
+function getStartingElement (atomicNum, stackSize)
     -- find the element number
     local startElem = getLargestElementUpTo(atomicNum)
     
     -- move element stack to result
-    supplyTrans[startElem].tran.transferItem(source, xfer, stack, 2, 1)
-    waitForFullResult()
+    supplyTrans[startElem].tran.transferItem(source, xfer, stackSize, 2, 1)
+    waitForFullResult(stackSize)
     
     return startElem
     
 end
 
 -- fuse result stack with largest possible element
-function fuseResultWithLargest (atomicNum)
+function fuseResultWithLargest (atomicNum, stackSize)
     -- get current element in result
     local currentNum = procTran.getStackInSlot(result, 2).damage
     
@@ -92,46 +90,76 @@ function fuseResultWithLargest (atomicNum)
     print("    Current element " .. currentNum .. " of " .. atomicNum .. " still needs " .. (atomicNum - currentNum) .. ". Fusing with element: " .. supplyTrans[fuseNum].name .. "...")
     
     -- move element from supply to fusion chamber
-    supplyTrans[fuseNum].tran.transferItem(source, fusionLeft, stack, 2, 1)
+    supplyTrans[fuseNum].tran.transferItem(source, fusionLeft, stackSize, 2, 1)
     
     -- move element from result to fusion chamber
-    procTran.transferItem(result, fusionRight, stack, 2, 1)
+    procTran.transferItem(result, fusionRight, stackSize, 2, 1)
     
     -- wait for fusion to complete
-    waitForFullResult()
+    waitForFullResult(stackSize)
     
     -- return atomicNum of new element
     return procTran.getStackInSlot(result, 2).damage
     
 end
 
-function createElementInOutput(atomicNum, count)
+function createElementInResult(atomicNum, stackSize)
+
+    -- set up starting element
+    local currentNum = getStartingElement(atomicNum, stackSize)
+    
+    print("    Starting with element: " .. supplyTrans[currentNum].name)
+    
+    -- loop until desired element reached
+    while (currentNum < atomicNum) do
+        currentNum = fuseResultWithLargest(atomicNum, stackSize)
+    end 
+    
+
+end
+
+function createElementInAux(atomicNum, stackSize)
+
+    print("  Creating Element with Atomic Num " .. atomicNum)
+
+    createElementInResult(atomicNum, stackSize)
+
+    -- move result to aux
+    procTran.transferItem(result, aux, stackSize, 2, 1)
+    
+    -- wait for result & aux to empty
+    while (procTran.getSlotStackSize(result, 2) > 0) or (procTran.getSlotStackSize(aux, 2) > 0) do
+        os.sleep(0.5)
+    end
+
+    print("  Element created")
+
+end
+
+function createElementStackInOutput(atomicNum, count)
+
+    local stackSize = 64
     for i=1,count do
         
-        print("  Creating Element stack " .. i .. " of " .. count .. " with Atomic Num " .. atomicNum)
-        
-        -- set up starting element
-        local currentNum = getStartingElement(atomicNum)
-        
-        print("    Starting with element: " .. supplyTrans[currentNum].name)
-        
-        -- loop until desired element reached
-        while (currentNum < atomicNum) do
-            currentNum = fuseResultWithLargest(atomicNum)
-        end 
+        print("  Creating Element " .. i .. " of " .. count .. " with Atomic Num " .. atomicNum)
+
+        createElementInResult(atomicNum, stackSize)
         
         -- move result to output
-        procTran.transferItem(result, output, stack, 2, 1)
+        procTran.transferItem(result, output, stackSize, 2, 1)
         
         -- wait for result & output to empty
         while (procTran.getSlotStackSize(result, 2) > 0) or (procTran.getSlotStackSize(output, 2) > 0) do
             os.sleep(0.5)
         end
         
-        print("  Element stack complete.")
+        print("  Element created")
     
     end
 end
+
+
+
 
 -- Emerald components
 -- V2 Cr2 (Be3 Al2 (Si O3)6)2
@@ -150,11 +178,15 @@ local Al = 13
 local Cr = 24
 local V  = 23
 local C  = 6
+local He = 2
+local H  = 1
+local Cn = 112
  
 while true do
     
     print("1. Make Emerald Stack")
     print("2. Make Diamond Block")
+    print("3. Make Nether Star")
     local userInput = io.read()
     
     if userInput == "1" then
@@ -169,30 +201,48 @@ while true do
             -- (Si O3)6
             for SiO3=1,6 do
                 print("Generating 1 Silicon")
-                createElementInOutput(Si, 1)
+                createElementStackInOutput(Si, 1)
  
                 print("Generating 3 Oxygen")
-                createElementInOutput(O, 3)
+                createElementStackInOutput(O, 3)
             end
  
             print("Generating 3 Beryllium")
-            createElementInOutput(Be, 3)
+            createElementStackInOutput(Be, 3)
  
             print("Generating 2 Aluminium")
-            createElementInOutput(Al, 2)
+            createElementStackInOutput(Al, 2)
         end
  
         print("Generating 3 Chromium")
-        createElementInOutput(Cr, 2)
+        createElementStackInOutput(Cr, 2)
  
         print("Generating 2 Vanadium")
-        createElementInOutput(V, 2)
+        createElementStackInOutput(V, 2)
  
         print("Emerald Components Complete")
         
     elseif userInput == "2" then
         print("Generating 108 Carbon stacks")
-        createElementInOutput(C, 108)
+        createElementStackInOutput(C, 108)
+    elseif userInput == "3" then
+        print("Generating 4 Helium stacks")
+        createElementInAux(He, 64)
+        createElementInAux(He, 64)
+        createElementInAux(He, 64)
+        createElementInAux(He, 64)
+
+        print("Generating 3 Hydrogen stacks")
+        createElementInAux(H, 64)
+        createElementInAux(H, 64)
+        createElementInAux(H, 64)
+
+        print("Generating 1 Carbon stack")
+        createElementInAux(C, 64)
+
+        print("Generating 16 RADIOACTIVE COPERNICUM")
+        createElementInAux(Cn, 16)
+    
     else
         print("Unknown Option")
     end
