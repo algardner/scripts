@@ -241,7 +241,9 @@ while true do
         createElementInAux(C, 64)
 
         print("Generating 16 RADIOACTIVE COPERNICUM")
-        createElementInAux(Cn, 16)
+        for i=1,16 do 
+            createElementInAux(Cn, 1)
+        end
     
     else
         print("Unknown Option")
